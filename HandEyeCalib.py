@@ -1,3 +1,23 @@
+"""
+HandEyeCalib.py
+
+提供手眼标定相关功能，包括：
+- 使用 OpenCV 进行手眼标定 (eye-to-hand)
+- 自定义手眼标定算法
+- SE(3) 残差计算
+- 处理棋盘格图像并生成角点可视化
+
+环境
+- python 3.10
+- roboticstoolbox-python 1.1.1
+- numpy 1.26.4
+- scipy 1.15.3
+- opencv-python 4.9.0.80
+
+Author: lzq
+Date: 2026-01-30
+"""
+
 import os
 import cv2
 import numpy as np
@@ -33,8 +53,9 @@ class HandEyeCalib:
             [0, 493.23, 242.318],
             [0, 0, 1]
         ], dtype=np.float64)
-        self._dist_coeffs = np.array([[0], [0], [0], [0], [0]], dtype=np.float64)  # [0.151969],[-0.50804],[-0.00010498],[-0.00118724],[0.535007]
-        self._robot = rm65_6F_model()
+        # self._dist_coeffs = np.array([[0], [0], [0], [0], [0]], dtype=np.float64)
+        self._dist_coeffs = np.array([[0.151969], [-0.50804], [-0.00010498], [-0.00118724], [0.535007]],dtype=np.float64)
+        self._robot = rm65_6FB_model()
 
     def _get_pose_target2cam(self, images_dir_):
         """
@@ -85,10 +106,13 @@ class HandEyeCalib:
                     criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.1)
                 )
 
-                for corner in corners:
-                    save_image_file = os.path.join(save_images_dir, fname)
-                    cv2.circle(image, (int(corner[0][0]), int(corner[0][1])), 5, 0, 2)
-                    cv2.imwrite(save_image_file, image)
+                color_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+                for i in range(len(corners)):
+                    if i != len(corners) - 1:
+                        cv2.line(color_image, tuple(corners[i][0].astype(int)), tuple(corners[i + 1][0].astype(int)), (0, 255, 0), 2)
+                    cv2.circle(color_image, tuple(corners[i][0].astype(int)), 5, (0, 0, 255), 2)
+                save_image_file = os.path.join(save_images_dir, fname)
+                cv2.imwrite(save_image_file, color_image)
 
                 # ===== PnP 求解位姿 target → camera =====
                 success, rvec, tvec = cv2.solvePnP(
@@ -99,6 +123,21 @@ class HandEyeCalib:
                 )
 
                 if success:
+                    # 验证解
+                    # proj_pts, _ = cv2.projectPoints(
+                    #     object_points,
+                    #     rvec,
+                    #     tvec,
+                    #     self._K_cam,
+                    #     self._dist_coeffs
+                    # )
+                    # proj_pts = proj_pts.reshape(-1, 2)
+                    # corners = corners.reshape(-1, 2)
+                    # err = np.linalg.norm(proj_pts - corners, axis=1)
+                    # mean_err = err.mean()
+                    # max_err = err.max()
+                    # print("mean reprojection pixel error:", mean_err)
+                    # print("max reprojection pixel error:", max_err)
                     idxs.append(idx)
                     R, _ = cv2.Rodrigues(rvec)
                     T_target2cam = np.eye(4)
@@ -110,21 +149,23 @@ class HandEyeCalib:
 
         return T_target2cams, idxs
 
-    def _get_pose_base2end(self, hand_file_, idxs_):
+    def _get_pose_base2end(self, hand_angle_file_, idxs_, degree_):
         """
-        获取机械臂末端到基座的位姿变换。
+        获取机械臂基座到末端的位姿变换矩阵。
 
-        :param hand_file_: 包含机械臂关节角度数据（每组6个关节角度，单位：弧度）的文件路径（字符串）。
+        :param hand_angle_file_: 包含机械臂关节角度数据（每组6个关节角度，单位：弧度）的文件路径（字符串）。
         :param idxs_: 要获取位姿的行索引列表（整数列表）。
+        :param degree_: 输入角度单位是角度还是弧度（布尔值）。
         :return: 一个包含机械臂末端到基座的位姿变换矩阵的列表。
         """
         T_base2ends = []
         for idx in idxs_:
-            hand_angle = readline(file_=hand_file_, line_=idx)
+            hand_angle = readline(file_=hand_angle_file_, line_=idx)
             hand_angle = np.array(hand_angle, dtype=np.float64)
-            hand_angle = np.radians(hand_angle)
-            T_bast2end = self._robot.fkine(hand_angle)
-            T_base2ends.append(T_bast2end.A)
+            if degree_:
+                hand_angle = np.deg2rad(hand_angle)
+            T_end2base = self._robot.fkine(hand_angle)
+            T_base2ends.append(np.linalg.inv(T_end2base.A))
         return T_base2ends
 
     def _split_R_t(self, Ts_):
@@ -141,19 +182,20 @@ class HandEyeCalib:
             ts_.append(Ts_[i][:3, 3])
         return Rs_, ts_
 
-    def run_opencv_hand_to_eye(self, images_dir_, hand_file_):
+    def run_opencv_hand_to_eye(self, images_dir_, hand_angle_file_, degree_ = False):
         """
         运行手眼标定，计算相机到基座的位姿变换矩阵。
 
         :param images_dir_: 包含棋盘格图像的目录路径（字符串）。
-        :param hand_file_: 包含机械臂关节角度数据（每组6个关节角度，单位：弧度）的文件路径（字符串）。
+        :param hand_angle_file_: 包含机械臂关节角度数据（每组6个关节角度，单位：弧度）的文件路径（字符串）。
+        :param degree_: 输入角度单位是角度还是弧度（布尔值）。默认值为弧度。
         :return: 相机到基座的变换矩阵（4x4 浮点数数组）。
         """
         # 1️⃣ 获取相机对棋盘的位姿
         T_target2cams, idxs = self._get_pose_target2cam(images_dir_)
 
         # 2️⃣ 获取机械臂末端到基座的位姿
-        T_base2ends = self._get_pose_base2end(hand_file_, idxs)
+        T_base2ends = self._get_pose_base2end(hand_angle_file_, idxs, degree_ = degree_)
 
         # 分离R， t
         R_target2cams, t_target2cams = self._split_R_t(T_target2cams)
@@ -174,37 +216,48 @@ class HandEyeCalib:
 
         return X_
 
-    def run_my_hand_to_eye(self, images_dir_, hand_file_):
+    def run_my_hand_to_eye(self, images_dir_, hand_angle_file_, degree_ = False):
         """
         运行手眼标定，计算相机到基座的位姿变换矩阵。
 
         :param images_dir_: 包含棋盘格图像的目录路径（字符串）。
-        :param hand_file_: 包含机械臂关节角度数据（每组6个关节角度，单位：弧度）的文件路径（字符串）。
+        :param hand_angle_file_: 包含机械臂关节角度数据（每组6个关节角度，单位：弧度）的文件路径（字符串）。
+        :param degree_: 输入角度单位是角度还是弧度（布尔值）。默认值为弧度。
         :return: 相机到基座的变换矩阵（4x4 浮点数数组）。
         """
         # 1️⃣ 获取相机对棋盘的位姿
         T_target2cams, idxs = self._get_pose_target2cam(images_dir_)
         # 2️⃣ 获取机械臂末端到基座的位姿
-        T_base2ends = self._get_pose_base2end(hand_file_, idxs)
+        T_base2ends = self._get_pose_base2end(hand_angle_file_, idxs, degree_ = degree_)
 
-        M = np.zeros((3, 3))
-        S_all = []
-        I = np.eye(3, dtype=np.float64)
-        remove = 0
+        TAs = []
+        TBs = []
+        Ras = []
+        Rbs = []
         for i in range(len(T_target2cams)):
             for j in range(i + 1, len(T_target2cams)):
                 TA = np.linalg.inv(T_base2ends[j]) @ T_base2ends[i]
                 TB = T_target2cams[j] @ np.linalg.inv(T_target2cams[i])
                 Ra = Rotation.from_matrix(TA[:3, :3]).as_rotvec()
                 Rb = Rotation.from_matrix(TB[:3, :3]).as_rotvec()
-                if np.linalg.norm(Ra) < 0.1 or np.linalg.norm(Rb) < 0.1:  # ~6°
-                    remove += 1
-                    continue
-                if abs(np.linalg.norm(Ra) - np.pi) < 1e-3:
-                    remove += 1
-                    continue
-                M += np.outer(Rb, Ra)
-                S_all.append(np.kron(TA[:3, :3], I) - np.kron(I, TB[:3, :3].transpose()))
+                TAs.append(TA)
+                TBs.append(TB)
+                Ras.append(Ra)
+                Rbs.append(Rb)
+
+        remove = 0
+        M = np.zeros((3, 3))
+        S_all = []
+        I3 = np.eye(3, dtype=np.float64)
+        for i in range(len(TAs)):
+            if np.linalg.norm(Ras[i]) < 0.1 or np.linalg.norm(Rbs[i]) < 0.1:  # ~6°
+                remove += 1
+                continue
+            if abs(np.linalg.norm(Ras[i]) - np.pi) < 1e-3:
+                remove += 1
+                continue
+            M += np.outer(Rbs[i], Ras[i])
+            S_all.append(np.kron(TAs[i][:3, :3], I3) - np.kron(I3, TBs[i][:3, :3].transpose()))
 
         # 方法一求解
         U, S, Vt = np.linalg.svd(M)
@@ -229,19 +282,14 @@ class HandEyeCalib:
         Ta = []
         Tb1 = []
         Tb2 = []
-        for i in range(len(T_target2cams)):
-            for j in range(i + 1, len(T_target2cams)):
-                TA = np.linalg.inv(T_base2ends[j]) @ T_base2ends[i]
-                TB = T_target2cams[j] @ np.linalg.inv(T_target2cams[i])
-                Ra = Rotation.from_matrix(TA[:3, :3]).as_rotvec()
-                Rb = Rotation.from_matrix(TB[:3, :3]).as_rotvec()
-                if np.linalg.norm(Ra) < 0.1 or np.linalg.norm(Rb) < 0.1:  # ~6°
-                    continue
-                if abs(np.linalg.norm(Ra) - np.pi) < 1e-3:
-                    continue
-                Ta.append(TA[:3, :3] - np.eye(3))
-                Tb1.append((R_cam2base1 @ TB[:3, 3] - TA[:3, 3]).reshape((3, 1)))
-                Tb2.append((R_cam2base2 @ TB[:3, 3] - TA[:3, 3]).reshape((3, 1)))
+        for i in range(len(TAs)):
+            if np.linalg.norm(Ras[i]) < 0.1 or np.linalg.norm(Rbs[i]) < 0.1:  # ~6°
+                continue
+            if abs(np.linalg.norm(Ras[i]) - np.pi) < 1e-3:
+                continue
+            Ta.append(TAs[i][:3, :3] - np.eye(3))
+            Tb1.append((R_cam2base1 @ TBs[i][:3, 3] - TAs[i][:3, 3]).reshape((3, 1)))
+            Tb2.append((R_cam2base2 @ TBs[i][:3, 3] - TAs[i][:3, 3]).reshape((3, 1)))
         Ta = np.vstack(Ta)
         Tb1 = np.vstack(Tb1)
         Tb2 = np.vstack(Tb2)
@@ -283,33 +331,18 @@ class HandEyeCalib:
 
 if __name__ == "__main__":
     images_dir = "calib_data/images"
-    hand_file = "calib_data/hand_angle.txt"
-    handeye_calib = HandEyeCalib()
+    hand_angle_file = "calib_data/hand_angle.txt"
+    hand_eye_calib = HandEyeCalib()
 
     # eye-to-hand calibration
-    X = handeye_calib.run_opencv_hand_to_eye(images_dir, hand_file)
+    X = hand_eye_calib.run_opencv_hand_to_eye(images_dir, hand_angle_file, degree_=True)
     print("camera to base transform matrix X = \n", X)
-    np.savetxt(
-        "calib_data/X_cam2base_opencv.txt",
-        X,
-        fmt="%.8f"
-    )
-
-    X1, X2 = handeye_calib.run_my_hand_to_eye(images_dir, hand_file)
+    X1, X2 = hand_eye_calib.run_my_hand_to_eye(images_dir, hand_angle_file, degree_=True)
     print("camera to base transform matrix X1 = \n", X1)
-    np.savetxt(
-        "calib_data/X_cam2base_my1.txt",
-        X1,
-        fmt="%.8f"
-    )
     print("camera to base transform matrix X2 = \n", X2)
-    np.savetxt(
-        "calib_data/X_cam2base_my2.txt",
-        X2,
-        fmt="%.8f"
-    )
 
-    # q1 = handeye_calib._robot.ikine_LM(X1)
-    # print(q1)
-    # q2 = handeye_calib._robot.ikine_LM(X2)
-    # print(q2)
+    # np.savetxt(
+    #     "calib_data/X_cam2base_opencv.txt",
+    #     X,
+    #     fmt="%.8f"
+    # )

@@ -43,71 +43,78 @@ def ur3e_model():
     return robot
 
 
-def rm65_6F_model():
+def rm65_6FB_model():
     """
-    构建 RM65-6F 六自由度机械臂的 DH 参数模型。
+    构建 RM65-6FB 六自由度机械臂的 DH 参数模型。
 
     :return: DHRobot
-        一个包含 6 个旋转关节的 RM65-6F 机械臂模型对象。
+        一个包含 6 个旋转关节的 RM65-6FB 机械臂模型对象。
     """
-    # a(mm),alpha(deg),d(mm),offset(deg),qlim1(deg),qlim2(deg),dqlim(deg/s),m(kg),rx(mm),ry(mm),rz(mm),Ixx(kg.mm^2),Ixy(kg.mm^2),Ixz(kg.mm^2),Iyy(kg.mm^2),Iyz(kg.mm^2),Izz(kg.mm^2)
-    rm65_6F = [
-        [0, 0, 240.5, 0, -178, 178, 180, 1.51, 0.491, 7.803, -10.744, 2928.466, -32.63, -5.816, 2506.35, 47.925, 1756.017],
-        [0, 90, 0, 90, -130, 130, 180, 1.653, 183.722, 0.103, -1.665, 1711.553, -38.271, 2314.91, 70514.722, 6.507, 70036.186],
-        [256, 0, 0, 90, -135, 135, 225, 0.726, 0.029, -90.105, 4.039, 7259.884, 2.994, -0.314, 371.872, 44.451, 7228.758],
-        [0, 90, 210, 0, -178, 178, 225, 0.671, 0.007, -9.486, -8.041, 794.014, -0.821, -0.655, 596.235, -34.785, 486.228],
-        [0, -90, 0, 0, -128, 128, 225, 0.647, 0.032, -83.769, 2.326, 5375.604, 2.665, -0.304, 285.265, 14.235, 5359.769],
-        [0, 90, 172.5, 0, -360, 360, 225, 0.248, -0.426, 0.237, -27.223, 308.844, -3.781, -1.468, 304.616, 0.888, 122.62]
+    # a(mm),alpha(deg),d(mm),offset(deg),qlim1(deg),qlim2(deg),dqlim(deg/s),m(kg),rx(mm),ry(mm),rz(mm),
+    # Ixx(kg.mm^2),Ixy(kg.mm^2),Ixz(kg.mm^2),Iyy(kg.mm^2),Iyz(kg.mm^2),Izz(kg.mm^2)
+    DH_ = [
+        [0, 0, 240.5, 0, -178, 178, 180, 1.51, 0.491, 7.803, -10.744,
+         2928.466, -32.63, -5.816, 2506.35, 47.925, 1756.017],
+        [0, 90, 0, 90, -130, 130, 180, 1.653, 183.722, 0.103, -1.665,
+         1711.553, -38.271, 2314.91, 70514.722, 6.507, 70036.186],
+        [256, 0, 0, 90, -135, 135, 225, 0.726, 0.029, -90.105, 4.039,
+         7259.884, 2.994, -0.314, 371.872, 44.451, 7228.758],
+        [0, 90, 210, 0, -178, 178, 225, 0.671, 0.007, -9.486, -8.041,
+         794.014, -0.821, -0.655, 596.235, -34.785, 486.228],
+        [0, -90, 0, 0, -128, 128, 225, 0.647, 0.032, -83.769, 2.326,
+         5375.604, 2.665, -0.304, 285.265, 14.235, 5359.769],
+        [0, 90, 161.2, 0, -360, 360, 225, 0.248, -0.426, 0.237, -27.223,
+         308.844, -3.781, -1.468, 304.616, 0.888, 122.62]
     ]
-    L1 = RevoluteMDH(a=1e-3 * rm65_6F[0][0],
-                     alpha=np.deg2rad(rm65_6F[0][1]),
-                     d=1e-3 * rm65_6F[0][2],
-                     offset=np.deg2rad(rm65_6F[0][3]),
-                     qlim=[np.deg2rad(rm65_6F[0][4]), np.deg2rad(rm65_6F[0][5])],
-                     m=rm65_6F[0][7],
-                     r=1e-3 * np.array([rm65_6F[0][8], rm65_6F[0][9], rm65_6F[0][10]]),
-                     I=1e-6 * np.array([rm65_6F[0][11], rm65_6F[0][14], rm65_6F[0][16], rm65_6F[0][12], rm65_6F[0][15], rm65_6F[0][13]]))
-    L2 = RevoluteMDH(a=1e-3 * rm65_6F[1][0],
-                     alpha=np.deg2rad(rm65_6F[1][1]),
-                     d=1e-3 * rm65_6F[1][2],
-                     offset=np.deg2rad(rm65_6F[1][3]),
-                     qlim=[np.deg2rad(rm65_6F[1][4]), np.deg2rad(rm65_6F[1][5])],
-                     m=rm65_6F[1][7],
-                     r=1e-3 * np.array([rm65_6F[1][8], rm65_6F[1][9], rm65_6F[1][10]]),
-                     I=1e-6 * np.array([rm65_6F[1][11], rm65_6F[1][14], rm65_6F[1][16], rm65_6F[1][12], rm65_6F[1][15], rm65_6F[1][13]]))
-    L3 = RevoluteMDH(a=1e-3 * rm65_6F[2][0],
-                     alpha=np.deg2rad(rm65_6F[2][1]),
-                     d=1e-3 * rm65_6F[2][2],
-                     offset=np.deg2rad(rm65_6F[2][3]),
-                     qlim=[np.deg2rad(rm65_6F[2][4]), np.deg2rad(rm65_6F[2][5])],
-                     m=rm65_6F[2][7],
-                     r=1e-3 * np.array([rm65_6F[2][8], rm65_6F[2][9], rm65_6F[2][10]]),
-                     I=1e-6 * np.array([rm65_6F[2][11], rm65_6F[2][14], rm65_6F[2][16], rm65_6F[2][12], rm65_6F[2][15], rm65_6F[2][13]]))
-    L4 = RevoluteMDH(a=1e-3 * rm65_6F[3][0],
-                     alpha=np.deg2rad(rm65_6F[3][1]),
-                     d=1e-3 * rm65_6F[3][2],
-                     offset=np.deg2rad(rm65_6F[3][3]),
-                     qlim=[np.deg2rad(rm65_6F[3][4]), np.deg2rad(rm65_6F[3][5])],
-                     m=rm65_6F[3][7],
-                     r=1e-3 * np.array([rm65_6F[3][8], rm65_6F[3][9], rm65_6F[3][10]]),
-                     I=1e-6 * np.array([rm65_6F[3][11], rm65_6F[3][14], rm65_6F[3][16], rm65_6F[3][12], rm65_6F[3][15], rm65_6F[3][13]]))
-    L5 = RevoluteMDH(a=1e-3 * rm65_6F[4][0],
-                     alpha=np.deg2rad(rm65_6F[4][1]),
-                     d=1e-3 * rm65_6F[4][2],
-                     offset=np.deg2rad(rm65_6F[4][3]),
-                     qlim=[np.deg2rad(rm65_6F[4][4]), np.deg2rad(rm65_6F[4][5])],
-                     m=rm65_6F[4][7],
-                     r=1e-3 * np.array([rm65_6F[4][8], rm65_6F[4][9], rm65_6F[4][10]]),
-                     I=1e-6 * np.array([rm65_6F[4][11], rm65_6F[4][14], rm65_6F[4][16], rm65_6F[4][12], rm65_6F[4][15], rm65_6F[4][13]]))
-    L6 = RevoluteMDH(a=1e-3 * rm65_6F[5][0],
-                     alpha=np.deg2rad(rm65_6F[5][1]),
-                     d=1e-3 * rm65_6F[5][2],
-                     offset=np.deg2rad(rm65_6F[5][3]),
-                     qlim=[np.deg2rad(rm65_6F[5][4]), np.deg2rad(rm65_6F[5][5])],
-                     m=rm65_6F[5][7],
-                     r=1e-3 * np.array([rm65_6F[5][8], rm65_6F[5][9], rm65_6F[5][10]]),
-                     I=1e-6 * np.array([rm65_6F[5][11], rm65_6F[5][14], rm65_6F[5][16], rm65_6F[5][12], rm65_6F[5][15], rm65_6F[5][13]]))
-    robot = DHRobot([L1, L2, L3, L4, L5, L6], name='rm65_6F')
+    L1 = RevoluteMDH(a=1e-3 * DH_[0][0],
+                     alpha=np.deg2rad(DH_[0][1]),
+                     d=1e-3 * DH_[0][2],
+                     offset=np.deg2rad(DH_[0][3]),
+                     qlim=[np.deg2rad(DH_[0][4]), np.deg2rad(DH_[0][5])],
+                     m=DH_[0][7],
+                     r=1e-3 * np.array([DH_[0][8], DH_[0][9], DH_[0][10]]),
+                     I=1e-6 * np.array([DH_[0][11], DH_[0][14], DH_[0][16], DH_[0][12], DH_[0][15], DH_[0][13]]))
+    L2 = RevoluteMDH(a=1e-3 * DH_[1][0],
+                     alpha=np.deg2rad(DH_[1][1]),
+                     d=1e-3 * DH_[1][2],
+                     offset=np.deg2rad(DH_[1][3]),
+                     qlim=[np.deg2rad(DH_[1][4]), np.deg2rad(DH_[1][5])],
+                     m=DH_[1][7],
+                     r=1e-3 * np.array([DH_[1][8], DH_[1][9], DH_[1][10]]),
+                     I=1e-6 * np.array([DH_[1][11], DH_[1][14], DH_[1][16], DH_[1][12], DH_[1][15], DH_[1][13]]))
+    L3 = RevoluteMDH(a=1e-3 * DH_[2][0],
+                     alpha=np.deg2rad(DH_[2][1]),
+                     d=1e-3 * DH_[2][2],
+                     offset=np.deg2rad(DH_[2][3]),
+                     qlim=[np.deg2rad(DH_[2][4]), np.deg2rad(DH_[2][5])],
+                     m=DH_[2][7],
+                     r=1e-3 * np.array([DH_[2][8], DH_[2][9], DH_[2][10]]),
+                     I=1e-6 * np.array([DH_[2][11], DH_[2][14], DH_[2][16], DH_[2][12], DH_[2][15], DH_[2][13]]))
+    L4 = RevoluteMDH(a=1e-3 * DH_[3][0],
+                     alpha=np.deg2rad(DH_[3][1]),
+                     d=1e-3 * DH_[3][2],
+                     offset=np.deg2rad(DH_[3][3]),
+                     qlim=[np.deg2rad(DH_[3][4]), np.deg2rad(DH_[3][5])],
+                     m=DH_[3][7],
+                     r=1e-3 * np.array([DH_[3][8], DH_[3][9], DH_[3][10]]),
+                     I=1e-6 * np.array([DH_[3][11], DH_[3][14], DH_[3][16], DH_[3][12], DH_[3][15], DH_[3][13]]))
+    L5 = RevoluteMDH(a=1e-3 * DH_[4][0],
+                     alpha=np.deg2rad(DH_[4][1]),
+                     d=1e-3 * DH_[4][2],
+                     offset=np.deg2rad(DH_[4][3]),
+                     qlim=[np.deg2rad(DH_[4][4]), np.deg2rad(DH_[4][5])],
+                     m=DH_[4][7],
+                     r=1e-3 * np.array([DH_[4][8], DH_[4][9], DH_[4][10]]),
+                     I=1e-6 * np.array([DH_[4][11], DH_[4][14], DH_[4][16], DH_[4][12], DH_[4][15], DH_[4][13]]))
+    L6 = RevoluteMDH(a=1e-3 * DH_[5][0],
+                     alpha=np.deg2rad(DH_[5][1]),
+                     d=1e-3 * DH_[5][2],
+                     offset=np.deg2rad(DH_[5][3]),
+                     qlim=[np.deg2rad(DH_[5][4]), np.deg2rad(DH_[5][5])],
+                     m=DH_[5][7],
+                     r=1e-3 * np.array([DH_[5][8], DH_[5][9], DH_[5][10]]),
+                     I=1e-6 * np.array([DH_[5][11], DH_[5][14], DH_[5][16], DH_[5][12], DH_[5][15], DH_[5][13]]))
+    robot = DHRobot([L1, L2, L3, L4, L5, L6], name='rm65_6FB')
     return robot
 
 
