@@ -46,8 +46,8 @@ class HandEyeCalib:
     """
 
     def __init__(self):
-        self._board_size = (5, 3)
-        self._square_size = 0.06
+        self._board_size = (6, 4)
+        self._square_size = 0.05
         self._K_cam = np.array([
             [493.23, 0, 326.539],
             [0, 493.23, 242.318],
@@ -335,9 +335,9 @@ if __name__ == "__main__":
     hand_eye_calib = HandEyeCalib()
 
     # eye-to-hand calibration
-    X = hand_eye_calib.run_opencv_hand_to_eye(images_dir, hand_angle_file, degree_=True)
+    X = hand_eye_calib.run_opencv_hand_to_eye(images_dir, hand_angle_file, degree_=False)
     print("camera to base transform matrix X = \n", X)
-    X1, X2 = hand_eye_calib.run_my_hand_to_eye(images_dir, hand_angle_file, degree_=True)
+    X1, X2 = hand_eye_calib.run_my_hand_to_eye(images_dir, hand_angle_file, degree_=False)
     print("camera to base transform matrix X1 = \n", X1)
     print("camera to base transform matrix X2 = \n", X2)
 
