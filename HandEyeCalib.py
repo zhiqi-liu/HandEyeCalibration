@@ -73,12 +73,12 @@ class HandEyeCalib:
                     [(j - (w - 1) / 2) * self._square_size, (i - (h - 1) / 2) * self._square_size, 0.0])
         object_points = np.array(object_points, dtype=np.float32)
 
-        save_images_dir = images_dir_ + "_corners"
-        if os.path.exists(save_images_dir):
-            shutil.rmtree(save_images_dir)
-            os.makedirs(save_images_dir)
-        else:
-            os.makedirs(save_images_dir)
+        # save_images_dir = images_dir_ + "_corners"
+        # if os.path.exists(save_images_dir):
+        #     shutil.rmtree(save_images_dir)
+        #     os.makedirs(save_images_dir)
+        # else:
+        #     os.makedirs(save_images_dir)
 
         idx = 0
         idxs = []
@@ -106,13 +106,13 @@ class HandEyeCalib:
                     criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.1)
                 )
 
-                color_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-                for i in range(len(corners)):
-                    if i != len(corners) - 1:
-                        cv2.line(color_image, tuple(corners[i][0].astype(int)), tuple(corners[i + 1][0].astype(int)), (0, 255, 0), 2)
-                    cv2.circle(color_image, tuple(corners[i][0].astype(int)), 5, (0, 0, 255), 2)
-                save_image_file = os.path.join(save_images_dir, fname)
-                cv2.imwrite(save_image_file, color_image)
+                # color_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+                # for i in range(len(corners)):
+                #     if i != len(corners) - 1:
+                #         cv2.line(color_image, tuple(corners[i][0].astype(int)), tuple(corners[i + 1][0].astype(int)), (0, 255, 0), 2)
+                #     cv2.circle(color_image, tuple(corners[i][0].astype(int)), 5, (0, 0, 255), 2)
+                # save_image_file = os.path.join(save_images_dir, fname)
+                # cv2.imwrite(save_image_file, color_image)
 
                 # ===== PnP 求解位姿 target → camera =====
                 success, rvec, tvec = cv2.solvePnP(
