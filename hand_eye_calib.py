@@ -5,13 +5,6 @@
 - SE(3) 残差计算
 - 处理棋盘格图像并生成角点可视化
 
-环境
-- python 3.10
-- roboticstoolbox-python 1.1.1
-- numpy 1.26.4
-- scipy 1.15.3
-- opencv-python 4.9.0.80
-
 Author: lzq
 Date: 2026-01-30
 """
