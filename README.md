@@ -10,4 +10,14 @@ Find the pose transformation matrix between the camera coordinate system to the 
 - matplotlib 3.10.8
 
 眼固定标定结果如下：
+
 <img width="658" height="457" alt="image" src="https://github.com/user-attachments/assets/3afce008-0525-4923-b2b4-ad5da7a538c5" />
+
+可以看到SE3残差0.013，这个结果还是很不错的。
+
+标定结果受到如下因素影响：
+- 标定板质量
+- 相机分辨率
+- 相机内参精度
+- 机械臂重复精度
+- 标定数据质量（影响最大）
