@@ -3,6 +3,8 @@
 """
 import cv2
 import numpy as np
+import os
+from camera import xvisio
 
 
 def readline(file_: str, line_: int) -> list[float]:
@@ -16,7 +18,7 @@ def readline(file_: str, line_: int) -> list[float]:
     numbers = []
     current_line = -1
 
-    with open(file_, 'r') as f:
+    with open(file_) as f:
         for data in f:
             current_line += 1
             if current_line == line_:
@@ -48,8 +50,8 @@ def p_img2cam(pt_, z_, K_, dist_coeffs_):
     pt_undist = pt_undist.reshape(-1, 2)
     z_ = np.array(z_, dtype=np.float32).reshape(-1, 1)
     p_cam = np.hstack((pt_undist, z_))
-    p_cam[:, 0] = p_cam[:, 0] * p_cam[:, 2]
-    p_cam[:, 1] = p_cam[:, 1] * p_cam[:, 2]
+    p_cam[:, 0] *= p_cam[:, 2]
+    p_cam[:, 1] *= p_cam[:, 2]
     return p_cam
 
 
@@ -70,3 +72,54 @@ def p_cam2base(P_cam_, T_cam2base_):
     P_base_ = T_cam2base_ @ points_homogeneous_
     P_base_ = P_base_.transpose()[:, :3]
     return P_base_
+
+
+def get_best_T_cam2base(calib_data_dir: str):
+    """
+    读取手眼标定结果中最优的标定矩阵
+
+    :param calib_data_dir: str
+        存储了手眼标定结果的文件
+    :returns: ndarray
+        最优手眼标定矩阵，4x4浮点数数组
+    """
+    calib_data = np.load(os.path.join(calib_data_dir, "T_cam2base.npz"))
+
+    candidates = [
+        (calib_data["residual_opencv"], calib_data["T_opencv"]),
+        (calib_data["residual_my1"], calib_data["T_my1"]),
+        (calib_data["residual_my2"], calib_data["T_my2"])
+    ]
+
+    residual_min, T_best = min(candidates, key=lambda x: x[0])
+
+    print("residual_min:", residual_min)
+    print(f"T_best:\n{T_best}")
+
+    return T_best
+
+def p_img2base(pt, z, resolution):
+    """
+    将 2d 像素位置转换到机械臂基坐标系下 3d 位置
+
+    :param pt: tuple
+        像素坐标
+    :param z: float
+        pt 坐标的深度
+    :param resolution: str
+        图像分辨率，"low", "mid", "high"，分别对应 640x480、1280x620、1920x1080
+    :returns: ndarray
+        pt 点在机械臂坐标系下的 3d 位置
+    """
+    K_cam, dist_cam, _ = xvisio(resolution=resolution)
+    P_cam = p_img2cam(pt, z, K_cam, dist_cam)
+    print(f"P_cam:\n{P_cam}")
+    calib_data_dir = "calib_data640x480"
+    if resolution == "mid":
+        calib_data_dir = "calib_data1280x720"
+    elif resolution == "high":
+        calib_data_dir = "calib_data1920x1080"
+    T_cam2base = get_best_T_cam2base(calib_data_dir)
+    P_base = p_cam2base(P_cam, T_cam2base)
+    print(f"P_base:\n{P_base}")
+    return P_base

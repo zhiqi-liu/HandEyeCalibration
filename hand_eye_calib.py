@@ -5,6 +5,13 @@
 - SE(3) 残差计算
 - 处理棋盘格图像并生成角点可视化
 
+环境
+- python 3.10
+- roboticstoolbox-python 1.1.1
+- numpy 1.26.4
+- scipy 1.15.3
+- opencv-python 4.9.0.80
+
 Author: lzq
 Date: 2026-01-30
 """
@@ -43,7 +50,19 @@ class HandEyeCalib:
         self._board_size = (6, 4)
         self._square_size = 0.05
         self._robot = rm65_6FB_model()
-        self._K_cam, self._dist_coeffs, _ = xvisio(resolution="high")
+        self._K_cam = None
+        self._dist_coeffs = None
+
+    def set_camera_params(self, resolution_="low"):
+        """
+        设置相机参数，包括内参矩阵和畸变系数。
+        Parameters
+        ----------
+        resolution_ : str
+            相机分辨率，可选值为 "low"（低分辨率）、"mid"（中分辨率）、"high"（高分辨率）。
+            默认值为 "low"。
+        """
+        self._K_cam, self._dist_coeffs, _ = xvisio(resolution=resolution_)
 
     def _get_pose_target2cam(self, images_dir_):
         """
@@ -284,7 +303,7 @@ class HandEyeCalib:
         t_cam2base1, _, _, _ = np.linalg.lstsq(Ta, Tb1, rcond=None)
         t_cam2base2, _, _, _ = np.linalg.lstsq(Ta, Tb2, rcond=None)
 
-        print("num of image pairs removed:",remove)
+        print("num of image pairs removed:", remove)
         X1_ = np.eye(4)
         X1_[0:3, 0:3] = R_cam2base1
         X1_[0:3, 3] = t_cam2base1.squeeze()
@@ -317,10 +336,15 @@ class HandEyeCalib:
 
 
 if __name__ == "__main__":
-    calib_data_dir = "calib_data1920x1080"
+    resolution = "high"
+    calib_data_dir = "calib_data640x480"
+    if resolution == "high":
+        calib_data_dir = "calib_data1920x1080"
     images_dir = os.path.join(calib_data_dir, "images")
     hand_angle_file = os.path.join(calib_data_dir, "hand_angle.txt")
+
     hand_eye_calib = HandEyeCalib()
+    hand_eye_calib.set_camera_params(resolution)
 
     # eye-to-hand calibration
     X, se3_residual = hand_eye_calib.run_opencv_hand_to_eye(images_dir, hand_angle_file, degree_=False)
@@ -334,7 +358,7 @@ if __name__ == "__main__":
 
     # npz 格式保存
     np.savez(os.path.join(calib_data_dir, "T_cam2base.npz"),
-             residual_opencv=se3_residual, T_opencv = X,
+             residual_opencv=se3_residual, T_opencv=X,
              residual_my1=se3_residual1, T_my1=X1,
              residual_my2=se3_residual2, T_my2=X2)
     # calib_data = np.load(os.path.join(calib_data_dir, "T_cam2base.npz"))
@@ -344,10 +368,10 @@ if __name__ == "__main__":
 
     # yaml 格式保存
     calib_data = {"residual_opencv": float(se3_residual), "T_opencv": X.tolist(),
-            "residual_my1": float(se3_residual1), "T_my1": X1.tolist(),
-            "residual_my2": float(se3_residual2), "T_my2": X2.tolist()}
-    # with open(os.path.join(calib_data_dir, "T_cam2base.yaml"), "w") as f:
-    #     yaml.dump(calib_data, f)
+                  "residual_my1": float(se3_residual1), "T_my1": X1.tolist(),
+                  "residual_my2": float(se3_residual2), "T_my2": X2.tolist()}
+    with open(os.path.join(calib_data_dir, "T_cam2base.yaml"), "w") as f:
+        yaml.dump(calib_data, f)
     # with open(os.path.join(calib_data_dir, "T_cam2base.yaml")) as f:
     #     calib_data = yaml.safe_load(f)
     # T_residual,T = np.array(calib_data["residual_opencv"]),np.array(calib_data["T_opencv"])
