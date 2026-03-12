@@ -1,6 +1,3 @@
-"""
-公共函数
-"""
 import cv2
 import numpy as np
 import os
@@ -24,7 +21,7 @@ def readline(file_: str, line_: int) -> list[float]:
             if current_line == line_:
                 data = data.strip()
                 if data:
-                    for temp in data.split(','):
+                    for temp in data.split(","):
                         numbers.append(float(temp))
                 break
     return numbers
@@ -88,15 +85,16 @@ def get_best_T_cam2base(calib_data_dir: str):
     candidates = [
         (calib_data["residual_opencv"], calib_data["T_opencv"]),
         (calib_data["residual_my1"], calib_data["T_my1"]),
-        (calib_data["residual_my2"], calib_data["T_my2"])
+        (calib_data["residual_my2"], calib_data["T_my2"]),
     ]
 
     residual_min, T_best = min(candidates, key=lambda x: x[0])
 
-    print("residual_min:", residual_min)
-    print(f"T_best:\n{T_best}")
+    # print("residual_min:", residual_min)
+    # print(f"T_best:\n{T_best}")
 
     return T_best
+
 
 def p_img2base(pt, z, resolution):
     """
@@ -113,7 +111,7 @@ def p_img2base(pt, z, resolution):
     """
     K_cam, dist_cam, _ = xvisio(resolution=resolution)
     P_cam = p_img2cam(pt, z, K_cam, dist_cam)
-    print(f"P_cam:\n{P_cam}")
+    # print(f"P_cam:\n{P_cam}")
     calib_data_dir = "calib_data640x480"
     if resolution == "mid":
         calib_data_dir = "calib_data1280x720"
@@ -121,5 +119,5 @@ def p_img2base(pt, z, resolution):
         calib_data_dir = "calib_data1920x1080"
     T_cam2base = get_best_T_cam2base(calib_data_dir)
     P_base = p_cam2base(P_cam, T_cam2base)
-    print(f"P_base:\n{P_base}")
+    # print(f"P_base:\n{P_base}")
     return P_base

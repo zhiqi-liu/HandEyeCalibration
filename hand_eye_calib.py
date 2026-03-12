@@ -1,5 +1,5 @@
 """
-提供手眼标定相关功能，包括：
+提供手眼标定相关功能, 包括：
 - 使用 OpenCV 进行手眼标定 (eye-to-hand)
 - 自定义手眼标定算法
 - SE(3) 残差计算
@@ -13,7 +13,7 @@
 - opencv-python 4.9.0.80
 
 Author: lzq
-Date: 2026-01-30
+Date: 2026-03-06
 """
 
 import os
@@ -30,20 +30,20 @@ from common import readline
 
 class HandEyeCalib:
     """
-    手眼标定类，用于计算相机到机械臂基坐标的变换矩阵。
+    手眼标定类, 用于计算相机到机械臂基坐标的变换矩阵。
 
     Attributes
     ----------
     _board_size : tuple
-        棋盘格的尺寸，格式为 (宽度, 高度)。
+        棋盘格的尺寸, 格式为 (宽度, 高度)。
     _square_size : float
-        棋盘格中每个方格的尺寸（单位：米）。
+        棋盘格中每个方格的尺寸(单位：米)。
     _K_cam : np.ndarray
-        相机内参矩阵，3x3 浮点数数组。
+        相机内参矩阵, 3x3 浮点数数组。
     _dist_coeffs : np.ndarray
-        相机畸变系数，1x5 浮点数数组。
+        相机畸变系数, 1x5 浮点数数组。
     _robot : DHRobot
-        机械臂模型对象，用于计算关节角度。
+        机械臂模型对象, 用于计算关节角度。
     """
 
     def __init__(self):
@@ -52,40 +52,55 @@ class HandEyeCalib:
         self._robot = rm65_6FB_model()
         self._K_cam = None
         self._dist_coeffs = None
+        self._subpix_window = (11, 11)
+        self._subpix_zero_zone = (-1, -1)
+        self._subpix_criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.1)
 
     def set_camera_params(self, resolution_="low"):
         """
-        设置相机参数，包括内参矩阵和畸变系数。
+        设置相机参数, 包括内参矩阵和畸变系数。
         Parameters
         ----------
         resolution_ : str
-            相机分辨率，可选值为 "low"（低分辨率）、"mid"（中分辨率）、"high"（高分辨率）。
+            相机分辨率, 可选值为 "low"(低分辨率)、"mid"(中分辨率)、"high"(高分辨率)。
             默认值为 "low"。
         """
         self._K_cam, self._dist_coeffs, _ = xvisio(resolution=resolution_)
+
+    def _is_valid_rotvec_pair(self, ra_, rb_):
+        """过滤掉退化旋转对，避免不稳定的手眼求解。"""
+        if np.linalg.norm(ra_) < 0.1 or np.linalg.norm(rb_) < 0.1:  # ~6°
+            return False
+        if abs(np.linalg.norm(ra_) - np.pi) < 1e-3:
+            return False
+        return True
 
     def _get_pose_target2cam(self, images_dir_):
         """
         获取棋盘格到相机坐标系的位姿变换。
 
-        :param images_dir_: 包含棋盘格图像的目录路径（字符串）。
+        :param images_dir_: 包含棋盘格图像的目录路径(字符串)。
         :return: 一个包含棋盘格到相机坐标系位姿变换矩阵的列表。
         """
+        if self._K_cam is None or self._dist_coeffs is None:
+            raise RuntimeError("相机参数未设置，请先调用 set_camera_params")
+
         # =====  构造棋盘格 3D 点 =====
         object_points = []
         w, h = self._board_size
-        for i in range(h):
-            for j in range(w):
-                object_points.append(
-                    [(j - (w - 1) / 2) * self._square_size, (i - (h - 1) / 2) * self._square_size, 0.0])
-        object_points = np.array(object_points, dtype=np.float32)
 
-        # save_images_dir = images_dir_ + "_corners"
-        # if os.path.exists(save_images_dir):
-        #     shutil.rmtree(save_images_dir)
-        #     os.makedirs(save_images_dir)
-        # else:
-        #     os.makedirs(save_images_dir)
+        xx, yy = np.meshgrid(np.arange(w), np.arange(h))  # shape: (h, w)
+        object_points = np.column_stack(
+            [
+                (xx.ravel() - (w - 1) / 2) * self._square_size,
+                (yy.ravel() - (h - 1) / 2) * self._square_size,
+                np.zeros(w * h),
+            ]
+        ).astype(np.float32)
+
+        # save_images_dir = f"{images_dir_}_corners"
+        # shutil.rmtree(save_images_dir, ignore_errors=True)  # 存在就删，不存在就忽略
+        # os.makedirs(save_images_dir, exist_ok=True)         # 创建目录
 
         idx = 0
         idxs = []
@@ -108,43 +123,24 @@ class HandEyeCalib:
                 cv2.cornerSubPix(
                     image,
                     corners,
-                    (11, 11),
-                    (-1, -1),
-                    criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.1)
+                    self._subpix_window,
+                    self._subpix_zero_zone,
+                    self._subpix_criteria,
                 )
 
                 # color_image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-                # for i in range(len(corners)):
-                #     if i != len(corners) - 1:
-                #         cv2.line(color_image, tuple(corners[i][0].astype(int)), tuple(corners[i + 1][0].astype(int)), (0, 255, 0), 2)
-                #     cv2.circle(color_image, tuple(corners[i][0].astype(int)), 5, (0, 0, 255), 2)
-                # save_image_file = os.path.join(save_images_dir, fname)
-                # cv2.imwrite(save_image_file, color_image)
+                # cv2.drawChessboardCorners(color_image, self._board_size, corners, found)
+                # cv2.imwrite(os.path.join(save_images_dir, fname), color_image)
 
                 # ===== PnP 求解位姿 target → camera =====
-                success, rvec, tvec = cv2.solvePnP(
-                    object_points,
-                    corners,
-                    self._K_cam,
-                    self._dist_coeffs
-                )
+                success, rvec, tvec = cv2.solvePnP(object_points, corners, self._K_cam, self._dist_coeffs)
 
                 if success:
                     # 验证解
-                    # proj_pts, _ = cv2.projectPoints(
-                    #     object_points,
-                    #     rvec,
-                    #     tvec,
-                    #     self._K_cam,
-                    #     self._dist_coeffs
-                    # )
-                    # proj_pts = proj_pts.reshape(-1, 2)
-                    # corners = corners.reshape(-1, 2)
-                    # err = np.linalg.norm(proj_pts - corners, axis=1)
-                    # mean_err = err.mean()
-                    # max_err = err.max()
-                    # print("mean reprojection pixel error:", mean_err)
-                    # print("max reprojection pixel error:", max_err)
+                    # proj_pts, _ = cv2.projectPoints(object_points, rvec, tvec, self._K_cam, self._dist_coeffs)
+                    # err = np.linalg.norm(proj_pts.reshape(-1, 2) - corners.reshape(-1, 2), axis=1)
+                    # print("mean reprojection pixel error:", err.mean())
+                    # print("max reprojection pixel error:", err.max())
                     idxs.append(idx)
                     R, _ = cv2.Rodrigues(rvec)
                     T_target2cam = np.eye(4)
@@ -160,9 +156,9 @@ class HandEyeCalib:
         """
         获取机械臂基座到末端的位姿变换矩阵。
 
-        :param hand_angle_file_: 包含机械臂关节角度数据（每组6个关节角度，单位：弧度）的文件路径（字符串）。
-        :param idxs_: 要获取位姿的行索引列表（整数列表）。
-        :param degree_: 输入角度单位是角度还是弧度（布尔值）。
+        :param hand_angle_file_: 包含机械臂关节角度数据(每组6个关节角度, 单位：弧度)的文件路径(字符串)。
+        :param idxs_: 要获取位姿的行索引列表(整数列表)。
+        :param degree_: 输入角度单位是角度还是弧度(布尔值)。
         :return: 一个包含机械臂末端到基座的位姿变换矩阵的列表。
         """
         T_base2ends = []
@@ -179,24 +175,21 @@ class HandEyeCalib:
         """
         从变换矩阵中分离出旋转矩阵和平移向量。
 
-        :param Ts_: 包含变换矩阵的列表，每个元素为 4x4 浮点数数组。
+        :param Ts_: 包含变换矩阵的列表, 每个元素为 4x4 浮点数数组。
         :return: 一个包含旋转矩阵列表和平移向量列表的元组。
         """
-        Rs_ = []
-        ts_ = []
-        for i in range(len(Ts_)):
-            Rs_.append(Ts_[i][:3, :3])
-            ts_.append(Ts_[i][:3, 3])
+        Rs_ = [T[:3, :3] for T in Ts_]
+        ts_ = [T[:3, 3] for T in Ts_]
         return Rs_, ts_
 
     def run_opencv_hand_to_eye(self, images_dir_, hand_angle_file_, degree_=False):
         """
-        运行手眼标定，计算相机到基座的位姿变换矩阵。
+        运行手眼标定, 计算相机到基座的位姿变换矩阵。
 
-        :param images_dir_: 包含棋盘格图像的目录路径（字符串）。
-        :param hand_angle_file_: 包含机械臂关节角度数据（每组6个关节角度，单位：弧度）的文件路径（字符串）。
-        :param degree_: 输入角度单位是角度还是弧度（布尔值）。默认值为弧度。
-        :return: 相机到基座的变换矩阵（4x4 浮点数数组）。
+        :param images_dir_: 包含棋盘格图像的目录路径(字符串)。
+        :param hand_angle_file_: 包含机械臂关节角度数据(每组6个关节角度, 单位：弧度)的文件路径(字符串)。
+        :param degree_: 输入角度单位是角度还是弧度(布尔值)。默认值为弧度。
+        :return: 相机到基座的变换矩阵(4x4 浮点数数组)。
         """
         # 1️⃣ 获取相机对棋盘的位姿
         T_target2cams, idxs = self._get_pose_target2cam(images_dir_)
@@ -204,15 +197,16 @@ class HandEyeCalib:
         # 2️⃣ 获取机械臂末端到基座的位姿
         T_base2ends = self._get_pose_base2end(hand_angle_file_, idxs, degree_=degree_)
 
-        # 分离R， t
+        if len(T_target2cams) < 2 or len(T_base2ends) < 2:
+            raise ValueError("可用于标定的有效样本不足（至少需要 2 组）")
+
+        # 分离R,  t
         R_target2cams, t_target2cams = self._split_R_t(T_target2cams)
         R_base2ends, t_base2ends = self._split_R_t(T_base2ends)
 
         # 3️⃣ 手眼标定
         R_cam2base, t_cam2base = cv2.calibrateHandEye(
-            R_base2ends, t_base2ends,
-            R_target2cams, t_target2cams,
-            method=cv2.CALIB_HAND_EYE_HORAUD
+            R_base2ends, t_base2ends, R_target2cams, t_target2cams, method=cv2.CALIB_HAND_EYE_HORAUD
         )
 
         X_ = np.eye(4)
@@ -224,22 +218,22 @@ class HandEyeCalib:
 
     def run_my_hand_to_eye(self, images_dir_, hand_angle_file_, degree_=False):
         """
-        运行手眼标定，计算相机到基座的位姿变换矩阵。
+        运行手眼标定, 计算相机到基座的位姿变换矩阵。
 
-        :param images_dir_: 包含棋盘格图像的目录路径（字符串）。
-        :param hand_angle_file_: 包含机械臂关节角度数据（每组6个关节角度，单位：弧度）的文件路径（字符串）。
-        :param degree_: 输入角度单位是角度还是弧度（布尔值）。默认值为弧度。
-        :return: 相机到基座的变换矩阵（4x4 浮点数数组）。
+        :param images_dir_: 包含棋盘格图像的目录路径(字符串)。
+        :param hand_angle_file_: 包含机械臂关节角度数据(每组6个关节角度, 单位：弧度)的文件路径(字符串)。
+        :param degree_: 输入角度单位是角度还是弧度(布尔值)。默认值为弧度。
+        :return: 相机到基座的变换矩阵(4x4 浮点数数组)。
         """
         # 1️⃣ 获取相机对棋盘的位姿
         T_target2cams, idxs = self._get_pose_target2cam(images_dir_)
         # 2️⃣ 获取机械臂末端到基座的位姿
         T_base2ends = self._get_pose_base2end(hand_angle_file_, idxs, degree_=degree_)
 
-        TAs = []
-        TBs = []
-        Ras = []
-        Rbs = []
+        if len(T_target2cams) < 2 or len(T_base2ends) < 2:
+            raise ValueError("可用于标定的有效样本不足（至少需要 2 组）")
+
+        TAs, TBs, Ras, Rbs = [], [], [], []
         for i in range(len(T_target2cams)):
             for j in range(i + 1, len(T_target2cams)):
                 TA = np.linalg.inv(T_base2ends[j]) @ T_base2ends[i]
@@ -256,14 +250,14 @@ class HandEyeCalib:
         S_all = []
         I3 = np.eye(3, dtype=np.float64)
         for i in range(len(TAs)):
-            if np.linalg.norm(Ras[i]) < 0.1 or np.linalg.norm(Rbs[i]) < 0.1:  # ~6°
-                remove += 1
-                continue
-            if abs(np.linalg.norm(Ras[i]) - np.pi) < 1e-3:
+            if not self._is_valid_rotvec_pair(Ras[i], Rbs[i]):
                 remove += 1
                 continue
             M += np.outer(Rbs[i], Ras[i])
             S_all.append(np.kron(TAs[i][:3, :3], I3) - np.kron(I3, TBs[i][:3, :3].transpose()))
+
+        if not S_all:
+            raise ValueError("有效图像对不足，无法完成自定义手眼标定")
 
         # 方法一求解
         U, S, Vt = np.linalg.svd(M)
@@ -285,13 +279,9 @@ class HandEyeCalib:
             Vx[-1, :] *= -1
             R_cam2base2 = Ux @ Vx
 
-        Ta = []
-        Tb1 = []
-        Tb2 = []
+        Ta, Tb1, Tb2 = [], [], []
         for i in range(len(TAs)):
-            if np.linalg.norm(Ras[i]) < 0.1 or np.linalg.norm(Rbs[i]) < 0.1:  # ~6°
-                continue
-            if abs(np.linalg.norm(Ras[i]) - np.pi) < 1e-3:
+            if not self._is_valid_rotvec_pair(Ras[i], Rbs[i]):
                 continue
             Ta.append(TAs[i][:3, :3] - np.eye(3))
             Tb1.append((R_cam2base1 @ TBs[i][:3, 3] - TAs[i][:3, 3]).reshape((3, 1)))
@@ -320,10 +310,10 @@ class HandEyeCalib:
         """
         计算手眼标定结果的 SE(3) 残差。
 
-        :param TX: 相机到基座的变换矩阵（4x4 浮点数数组）。
-        :param T_base2ends: 机械臂末端到基座的位姿变换矩阵列表（每个元素为 4x4 浮点数数组）。
-        :param T_target2cams: 相机对棋盘的位姿变换矩阵列表（每个元素为 4x4 浮点数数组）。
-        :return: 平均 SE(3) 残差（浮点数）。
+        :param TX: 相机到基座的变换矩阵(4x4 浮点数数组)。
+        :param T_base2ends: 机械臂末端到基座的位姿变换矩阵列表(每个元素为 4x4 浮点数数组)。
+        :param T_target2cams: 相机对棋盘的位姿变换矩阵列表(每个元素为 4x4 浮点数数组)。
+        :return: 平均 SE(3) 残差(浮点数)。
         """
         res = []
         for i in range(len(T_base2ends)):
@@ -331,11 +321,12 @@ class HandEyeCalib:
                 # 相对运动
                 TA = np.linalg.inv(T_base2ends[j]) @ T_base2ends[i]
                 TB = T_target2cams[j] @ np.linalg.inv(T_target2cams[i])
-                res.append(np.linalg.norm(TA @ TX - TX @ TB, ord='fro'))
+                res.append(np.linalg.norm(TA @ TX - TX @ TB, ord="fro"))
         return np.mean(res)
 
 
 if __name__ == "__main__":
+    # 设置相机分辨率、标定数据目录(图像目录dir、机械臂角度文件txt)
     resolution = "high"
     calib_data_dir = "calib_data640x480"
     if resolution == "high":
@@ -357,19 +348,29 @@ if __name__ == "__main__":
     print(f"camera to base transform matrix X2 = \n{X2}")
 
     # npz 格式保存
-    np.savez(os.path.join(calib_data_dir, "T_cam2base.npz"),
-             residual_opencv=se3_residual, T_opencv=X,
-             residual_my1=se3_residual1, T_my1=X1,
-             residual_my2=se3_residual2, T_my2=X2)
+    np.savez(
+        os.path.join(calib_data_dir, "T_cam2base.npz"),
+        residual_opencv=se3_residual,
+        T_opencv=X,
+        residual_my1=se3_residual1,
+        T_my1=X1,
+        residual_my2=se3_residual2,
+        T_my2=X2,
+    )
     # calib_data = np.load(os.path.join(calib_data_dir, "T_cam2base.npz"))
     # T_residual,T = calib_data["residual_opencv"],calib_data["T_opencv"]
     # T1_residual,T1 = calib_data["residual_my1"],calib_data["T_my1"]
     # T2_residual,T2 = calib_data["residual_my2"],calib_data["T_my2"]
 
     # yaml 格式保存
-    calib_data = {"residual_opencv": float(se3_residual), "T_opencv": X.tolist(),
-                  "residual_my1": float(se3_residual1), "T_my1": X1.tolist(),
-                  "residual_my2": float(se3_residual2), "T_my2": X2.tolist()}
+    calib_data = {
+        "residual_opencv": float(se3_residual),
+        "T_opencv": X.tolist(),
+        "residual_my1": float(se3_residual1),
+        "T_my1": X1.tolist(),
+        "residual_my2": float(se3_residual2),
+        "T_my2": X2.tolist(),
+    }
     with open(os.path.join(calib_data_dir, "T_cam2base.yaml"), "w") as f:
         yaml.dump(calib_data, f)
     # with open(os.path.join(calib_data_dir, "T_cam2base.yaml")) as f:

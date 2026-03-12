@@ -3,7 +3,7 @@ import cv2
 cap = cv2.VideoCapture(0)  # 0 = 第一个摄像头
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-print(cap.get(cv2.CAP_PROP_FRAME_WIDTH),cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+print(cap.get(cv2.CAP_PROP_FRAME_WIDTH), cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
 if not cap.isOpened():
     raise RuntimeError("无法打开摄像头")
